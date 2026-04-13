@@ -1,91 +1,74 @@
-#include <BTstackLib.h>
-
 // Packages
 // "Adafruit_NeoPixel" 1.15.4
-// "ArduinoBLE" 2.0.0
+// BTstackLib is built into the Earle Philhower RP2040 core (no separate install)
 
 // Board:
 // For the Pico 2 W:
 //   Board managers -> https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
 //   Install the RP2040 from "Earle Philhower"
-
-// NOTE:
-// For the upload to work on a Nano board (Pop_OS!)
-
-// rules need to be setup to allow access.
-// https://support.arduino.cc/hc/en-us/articles/9005041052444-Fix-udev-rules-on-Linux#renesas
 //
-// Need to install udisks
-// sudo apt install udisks2
+// IMPORTANT — Arduino IDE Tools menu settings:
+//   IP/Bluetooth Stack: "IPv4 + Bluetooth"   (enables BTstack BLE)
 
 // Deployment script for POP_OS! (Execute from inside git folder)
 // cp $(find . -name "*.uf2" 2>/dev/null | head -1) /media/$USER/RP2350/
 
-// Test device is 2C:CF:67:E0:77:3F
-
 // =============================================================================
-// Device Testing (Classic Bluetooth SPP)
-// Test device MAC: 2C:CF:67:E0:77:3F
+// Device Testing (BLE UART / Nordic UART Service)
 // =============================================================================
 //
-// Step 1 — Cycle Bluetooth (clears stuck adapter state)
-//   bluetoothctl power off
-//   bluetoothctl power on
+// iOS: Use "nRF Toolbox" app -> UART -> connect to "BusyLight" -> send 0/1/2/3
 //
-// Step 2 — Pair and trust (first time only)
-//   bluetoothctl
-//     scan on
-//     # Wait for "BusyLight" to appear
-//     scan off
-//     pair 2C:CF:67:E0:77:3F
-//     trust 2C:CF:67:E0:77:3F
-//     quit
+// Linux — send via gatttool:
+//   sudo apt install bluez-tools
+//   hcitool lescan                         # find MAC
+//   gatttool -b <MAC> -I
+//     > connect
+//     > primary                            # find NUS service handle
+//     > characteristics                    # find RX characteristic handle
+//     > char-write-req <handle> 31         # 0x31 = '1' (Available)
 //
-// Step 3 — Bind the RFCOMM serial port (channel 1 = SPP default)
-//   sudo rfcomm unbind /dev/rfcomm0
-//   sudo rfcomm bind /dev/rfcomm0 2C:CF:67:E0:77:3F 1
-//
-// Step 4 — Connect via bluetoothctl to establish the link
-//   bluetoothctl connect 2C:CF:67:E0:77:3F
-//
-// Step 5 — Send a command
-//   sudo bash -c 'echo "1" > /dev/rfcomm0'
-//
-// Troubleshooting:
-//   "Cannot allocate memory" on echo:
-//     The rfcomm node exists but the connection was never established.
-//     Run Step 4 (bluetoothctl connect) before Step 5.
-//     Or verify the correct channel: sdptool browse 2C:CF:67:E0:77:3F
-//       Look for "Serial Port" / RFCOMM entry and use that channel number.
-//   Release a stuck binding:  sudo rfcomm release /dev/rfcomm0
-//   Restart BlueZ:            sudo systemctl restart bluetooth
-//   Verify the port is open:  sudo screen /dev/rfcomm0 9600  (Ctrl+A then K to exit)
+// Commands: '0'=Off  '1'=Available (green)  '2'=Busy (red)  '3'=Fun (rainbow)
 // =============================================================================
 
-#include <SerialBT.h>
+#include <BTstackLib.h>
 
 #include "hardwareConfig.h"
 #include "statusLight.h"
 
+// Nordic UART Service (NUS) UUIDs
+static const char* NUS_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+static const char* NUS_RX_UUID      = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";  // phone writes here
+static const char* NUS_TX_UUID      = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";  // device notifies here
+
 StatusLight statusLight = StatusLight(LED_COUNT, PIN);
 
-uint8_t currentMode = 0;
+// Callback signature required by BTstackLib: int fn(uint16_t id, uint8_t* buf, uint16_t len)
+// BTstack passes the ATT handle, not a custom ID — only one writable characteristic exists so no check needed.
+int gattWriteCallback(uint16_t characteristic_id, uint8_t* buffer, uint16_t buffer_size) {
+  if (buffer_size > 0) {
+    statusLight.setMode((char)buffer[0]);
+  }
+  return 0;
+}
 
 void setup() {
   Serial.begin(9600);
 
   statusLight.initialize();
 
-  SerialBT.setName("BusyLight");
-  SerialBT.begin();
-  Serial.println("BT advertising...");
+  BTstack.setGATTCharacteristicWrite(gattWriteCallback);
+  BTstack.setup("BusyLight");
+
+  BTstack.addGATTService(new UUID(NUS_SERVICE_UUID));
+  BTstack.addGATTCharacteristicDynamic(new UUID(NUS_RX_UUID), ATT_PROPERTY_WRITE_WITHOUT_RESPONSE | ATT_PROPERTY_WRITE, 0);
+  BTstack.addGATTCharacteristicDynamic(new UUID(NUS_TX_UUID), ATT_PROPERTY_READ | ATT_PROPERTY_NOTIFY, 0);
+
+  BTstack.startAdvertising();
+  Serial.println("BLE advertising...");
 }
 
 void loop() {
-  if (SerialBT.available()) {
-    char cmd = SerialBT.read();
-    statusLight.setMode(cmd);
-  }
-
+  BTstack.loop();
   statusLight.Service();
 }
