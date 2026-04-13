@@ -16,7 +16,7 @@ public:
     uint16_t ledCount,
     uint16_t hardwarePin) {
     strip = Adafruit_NeoPixel(ledCount, hardwarePin, NEO_GRB + NEO_KHZ800);
-    currentMode = Fun;
+    currentMode = Available;
   }
 
   void initialize() {
@@ -50,57 +50,49 @@ public:
   }
 
   void Service() {
+    unsigned long now = millis();
     switch (currentMode) {
-      case Busy: busyLoop(); break;
-      case Available: availableLoop(); break;
-      case Off: offLoop(); break;
+      case Busy:      busyLoop(now);      break;
+      case Available: availableLoop(now); break;
+      case Off:       offLoop(now);       break;
       case Fun:
-      default: funLoop(); break;
+      default:        funLoop(now);       break;
     }
   }
 
 private:
-  void offLoop() {
-    strip.fill(strip.Color(0, 0, 0));
-    strip.show();
-    delay(500);
-  }
-
-  void busyLoop() {
-    strip.fill(strip.Color(255, 0, 0));
-    strip.show();
-    delay(500);
-  }
-
-  void availableLoop() {
-    strip.fill(strip.Color(0, 255, 0));
-    strip.show();
-    delay(500);
-  }
-
-  void funLoop() {
-    rainbow(10);
-  }
-
-  void rainbow(uint8_t wait) {
-    uint16_t i, j;
-    for (j = 0; j < 256; j++) {
-      for (i = 0; i < strip.numPixels(); i++) {
-        strip.setPixelColor(i, getWheel((i + j) & 255));
-      }
+  void offLoop(unsigned long now) {
+    if (now - lastUpdate >= 500) {
+      strip.fill(strip.Color(0, 0, 0));
       strip.show();
-      delay(wait);
+      lastUpdate = now;
     }
   }
 
-  void rainbowCycle(uint8_t wait) {
-    uint16_t i, j;
-    for (j = 0; j < 256 * 5; j++) {
-      for (i = 0; i < strip.numPixels(); i++) {
-        strip.setPixelColor(i, getWheel(((i * 256 / strip.numPixels()) + j) & 255));
+  void busyLoop(unsigned long now) {
+    if (now - lastUpdate >= 500) {
+      strip.fill(strip.Color(255, 0, 0));
+      strip.show();
+      lastUpdate = now;
+    }
+  }
+
+  void availableLoop(unsigned long now) {
+    if (now - lastUpdate >= 500) {
+      strip.fill(strip.Color(0, 255, 0));
+      strip.show();
+      lastUpdate = now;
+    }
+  }
+
+  void funLoop(unsigned long now) {
+    if (now - lastUpdate >= 10) {
+      for (uint16_t i = 0; i < strip.numPixels(); i++) {
+        strip.setPixelColor(i, getWheel((i + rainbowStep) & 255));
       }
       strip.show();
-      delay(wait);
+      rainbowStep = (rainbowStep + 1) & 255;
+      lastUpdate = now;
     }
   }
 
@@ -116,9 +108,10 @@ private:
     }
   }
 
-
   Adafruit_NeoPixel strip;
   Status currentMode;
+  unsigned long lastUpdate = 0;
+  uint16_t rainbowStep = 0;
 };
 
 #endif  // STATUS_LIGHT_H
