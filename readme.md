@@ -78,6 +78,8 @@ Before placing all of the components into the printed housing, you will need to 
 
 Please note that the Pi Pico 2 W is very picky about its USB-B plugs. You may need to try many cables before finding one.
 
+[BusyLight Enclosure](https://makerworld.com/en/models/2654853-busylight#profileId-2935510)
+
 To flash the Pi Pico W:
 
 1. Plug the USB-A side of the cable into your computer.
