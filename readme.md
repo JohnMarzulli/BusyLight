@@ -65,6 +65,8 @@ Use a multi-meter to determine the correct pins. With the pin in the "ON" positi
 
 ### USB-C Charger
 
+Adding the USB-C charger and LiPo is _optional_. You may instead elect to run from the USB-B port on the Pi Pico. Please be aware that the device uses so little current that many USB battery banks will cut-off.
+
 | Wire Color                     | USB-C Charger | Destination                |
 | ------------------------------ | ------------- | -------------------------- |
 | Red                            | B+            | JST Female Plug Red Wire   |
