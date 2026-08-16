@@ -89,8 +89,8 @@ void setup() {
 
   statusLight.initialize();
 
-  BTstack.setGATTCharacteristicWrite(gattWriteCallback);
   BTstack.setup("BusyLight");
+  BTstack.setGATTCharacteristicWrite(gattWriteCallback);
 
   BTstack.addGATTService(new UUID(NUS_SERVICE_UUID));
   BTstack.addGATTCharacteristicDynamic(
